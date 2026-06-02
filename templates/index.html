@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="pl" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Scheduler - System Rezerwacji Wizyt</title>
+
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom styling for glassmorphic elements and scrollbars -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #020617 100%);
+            background-attachment: fixed;
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-input {
+            background: rgba(2, 6, 23, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-input:focus {
+            border-color: rgba(99, 102, 241, 0.6);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.5);
+        }
+    </style>
+</head>
+
+<body class="h-full text-slate-100 flex flex-col antialiased">
+
+    <!-- Global Navigation Header -->
+    <header
+        class="glass-card sticky top-0 z-40 w-full border-b border-white/5 px-6 py-4 flex items-center justify-between shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="bg-indigo-600/20 p-2 rounded-xl border border-indigo-500/30">
+                <!-- Stethoscope SVG icon -->
+                <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                    </path>
+                </svg>
+            </div>
+            <div>
+                <h1
+                    class="text-lg font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                    Medical Scheduler</h1>
+                <p class="text-xs text-indigo-400 font-medium tracking-wide uppercase">System Zarządzania Wizytami</p>
+            </div>
+        </div>
+
+        <div id="nav-user-info" class="hidden items-center gap-4">
+            <div class="text-right">
+                <p id="user-display-name" class="text-sm font-semibold text-slate-200">Nazwisko</p>
+                <p id="user-display-role" class="text-xs text-slate-400 capitalize">Rola</p>
+            </div>
+            <button onclick="handleLogout()"
+                class="bg-slate-800 hover:bg-slate-700 text-xs font-semibold px-4 py-2 rounded-xl border border-white/10 transition-all">
+                Wyloguj
+            </button>
+        </div>
+    </header>
+
+    <!-- Global Toast Alert Container -->
+    <div id="toast-container" class="fixed top-20 right-6 z-50 flex flex-col gap-2 max-w-md"></div>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-7xl">
+
+        <!-- ================= AUTH CONTAINER (LOGIN / REGISTER) ================= -->
+        <div id="auth-container" class="max-w-md mx-auto my-12 hidden">
+            <!-- Tab switches -->
+            <div class="flex p-1 bg-slate-950/80 border border-white/5 rounded-xl mb-6">
+                <button id="tab-btn-login" onclick="switchAuthTab('login')"
+                    class="flex-1 text-center py-2.5 rounded-lg text-sm font-semibold transition-all bg-indigo-600 text-white shadow-md">
+                    Logowanie
+                </button>
+                <button id="tab-btn-register" onclick="switchAuthTab('register')"
+                    class="flex-1 text-center py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-400 hover:text-white">
+                    Rejestracja pacjenta
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="auth-login-card" class="glass-card rounded-2xl p-8 shadow-2xl">
+                <h2 class="text-xl font-bold mb-6 text-white text-center">Zaloguj się do portalu</h2>
+                <form id="login-form" onsubmit="event.preventDefault(); handleLogin();" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Adres
+                            Email</label>
+                        <input type="email" id="login-email" required
+                            class="glass-input w-full rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                            placeholder="name@domain.com">
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Hasło</label>
+                        <input type="password" id="login-password" required
+                            class="glass-input w-full rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                            placeholder="••••••••">
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20 mt-6">
+                        Zaloguj się
+                    </button>
+                </form>
+            </div>
+
+            <!-- Register Form -->
+            <div id="auth-register-card" class="glass-card rounded-2xl p-8 shadow-2xl hidden">
+                <h2 class="text-xl font-bold mb-6 text-white text-center">Zarejestruj konto pacjenta</h2>
+                <form id="register-form" onsubmit="event.preventDefault(); handleRegister();" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Imię</label>
+                            <input type="text" id="reg-firstname" required
+                                class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                                placeholder="Jan">
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Nazwisko</label>
+                            <input type="text" id="reg-lastname" required
+                                class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                                placeholder="Kowalski">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Numer
+                            PESEL</label>
+                        <input type="text" id="reg-pesel" required maxlength="11"
+                            class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                            placeholder="90010112345">
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Telefon</label>
+                        <input type="text" id="reg-phone" required
+                            class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                            placeholder="+48 123 456 789">
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Email</label>
+                        <input type="email" id="reg-email" required
+                            class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                            placeholder="pacjent@domain.com">
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Hasło</label>
+                        <input type="password" id="reg-password" required minlength="6"
+                            class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                            placeholder="Min. 6 znaków">
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20 mt-6">
+                        Zarejestruj się
+                    </button>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- ================= PATIENT DASHBOARD ================= -->
+        <div id="patient-dashboard" class="space-y-8 hidden">
+            <!-- Intro Card -->
+            <div class="glass-card rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-white">Witaj, <span id="pat-name"
+                            class="text-indigo-400">Pacjencie</span>!</h2>
+                    <p class="text-sm text-slate-400 mt-1">Z tego miejsca możesz przeglądać harmonogramy lekarzy oraz
+                        umawiać wizyty.</p>
+                </div>
+                <button onclick="openBookModal()"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2">
+                    <!-- Plus SVG -->
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Umów nową wizytę
+                </button>
+            </div>
+
+            <!-- Main Patient Sections -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Left: List of doctors and schedules -->
+                <div class="lg:col-span-1 space-y-6">
+                    <h3 class="text-lg font-bold text-slate-200 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z">
+                            </path>
+                        </svg>
+                        Nasi Specjaliści
+                    </h3>
+                    <div id="patient-doctors-list" class="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+
+                <!-- Right: Appointments list -->
+                <div class="lg:col-span-2 space-y-6">
+                    <h3 class="text-lg font-bold text-slate-200 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                            </path>
+                        </svg>
+                        Twoje Wizyty
+                    </h3>
+                    <div class="glass-card rounded-2xl overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-white/5 border-b border-white/5">
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Lekarz</th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Termin wizyty
+                                        </th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Status</th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Notatki /
+                                            Zalecenia</th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400 text-right">Akcja
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="patient-appointments-rows" class="divide-y divide-white/5 text-sm">
+                                    <!-- Loaded dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ================= DOCTOR DASHBOARD ================= -->
+        <div id="doctor-dashboard" class="space-y-8 hidden">
+            <!-- Welcome Info -->
+            <div class="glass-card rounded-2xl p-6">
+                <h2 class="text-2xl font-bold text-white">Dzień dobry, dr <span id="doc-name"
+                        class="text-indigo-400">Nazwisko</span></h2>
+                <p class="text-sm text-slate-400 mt-1">Gabinet: <span id="doc-room"
+                        class="font-medium text-slate-300"></span> | Specjalizacja: <span id="doc-spec"
+                        class="font-medium text-slate-300"></span></p>
+            </div>
+
+            <!-- Schedule and Appointments Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Left: Edit Schedule -->
+                <div class="lg:col-span-1 space-y-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-slate-200">Twój Grafik Pracy</h3>
+                        <button onclick="saveDoctorSchedule()"
+                            class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md transition-all">
+                            Zapisz grafik
+                        </button>
+                    </div>
+                    <div class="glass-card rounded-2xl p-6 space-y-4">
+                        <p class="text-xs text-slate-400">Zaznacz dni i podaj godziny, w których przyjmujesz pacjentów.
+                        </p>
+
+                        <div id="doctor-schedule-editor" class="space-y-3">
+                            <!-- Weekdays 0-6 -->
+                            <div class="space-y-2" data-day="0">
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm font-semibold">
+                                        <input type="checkbox" id="sched-check-0"
+                                            class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                                        Poniedziałek
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2 pl-6">
+                                    <input type="time" id="sched-start-0"
+                                        class="glass-input rounded-lg px-2 py-1 text-xs" value="08:00">
+                                    <span class="text-slate-500 text-xs">do</span>
+                                    <input type="time" id="sched-end-0" class="glass-input rounded-lg px-2 py-1 text-xs"
+                                        value="16:00">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2" data-day="1">
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm font-semibold">
+                                        <input type="checkbox" id="sched-check-1"
+                                            class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                                        Wtorek
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2 pl-6">
+                                    <input type="time" id="sched-start-1"
+                                        class="glass-input rounded-lg px-2 py-1 text-xs" value="08:00">
+                                    <span class="text-slate-500 text-xs">do</span>
+                                    <input type="time" id="sched-end-1" class="glass-input rounded-lg px-2 py-1 text-xs"
+                                        value="16:00">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2" data-day="2">
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm font-semibold">
+                                        <input type="checkbox" id="sched-check-2"
+                                            class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                                        Środa
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2 pl-6">
+                                    <input type="time" id="sched-start-2"
+                                        class="glass-input rounded-lg px-2 py-1 text-xs" value="08:00">
+                                    <span class="text-slate-500 text-xs">do</span>
+                                    <input type="time" id="sched-end-2" class="glass-input rounded-lg px-2 py-1 text-xs"
+                                        value="16:00">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2" data-day="3">
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm font-semibold">
+                                        <input type="checkbox" id="sched-check-3"
+                                            class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                                        Czwartek
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2 pl-6">
+                                    <input type="time" id="sched-start-3"
+                                        class="glass-input rounded-lg px-2 py-1 text-xs" value="08:00">
+                                    <span class="text-slate-500 text-xs">do</span>
+                                    <input type="time" id="sched-end-3" class="glass-input rounded-lg px-2 py-1 text-xs"
+                                        value="16:00">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2" data-day="4">
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm font-semibold">
+                                        <input type="checkbox" id="sched-check-4"
+                                            class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                                        Piątek
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2 pl-6">
+                                    <input type="time" id="sched-start-4"
+                                        class="glass-input rounded-lg px-2 py-1 text-xs" value="08:00">
+                                    <span class="text-slate-500 text-xs">do</span>
+                                    <input type="time" id="sched-end-4" class="glass-input rounded-lg px-2 py-1 text-xs"
+                                        value="14:00">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2" data-day="5">
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm font-semibold">
+                                        <input type="checkbox" id="sched-check-5"
+                                            class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                                        Sobota
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2 pl-6">
+                                    <input type="time" id="sched-start-5"
+                                        class="glass-input rounded-lg px-2 py-1 text-xs" value="09:00">
+                                    <span class="text-slate-500 text-xs">do</span>
+                                    <input type="time" id="sched-end-5" class="glass-input rounded-lg px-2 py-1 text-xs"
+                                        value="14:00">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2" data-day="6">
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm font-semibold">
+                                        <input type="checkbox" id="sched-check-6"
+                                            class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                                        Niedziela
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2 pl-6">
+                                    <input type="time" id="sched-start-6"
+                                        class="glass-input rounded-lg px-2 py-1 text-xs" value="09:00">
+                                    <span class="text-slate-500 text-xs">do</span>
+                                    <input type="time" id="sched-end-6" class="glass-input rounded-lg px-2 py-1 text-xs"
+                                        value="13:00">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Doctor's scheduled appointments list -->
+                <div class="lg:col-span-2 space-y-6">
+                    <h3 class="text-lg font-bold text-slate-200">Umówione Wizyty Pacjentów</h3>
+                    <div class="glass-card rounded-2xl overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-white/5 border-b border-white/5">
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Pacjent</th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Dane kontaktowe
+                                        </th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Termin</th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Status</th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400">Notatki
+                                            gabinetowe</th>
+                                        <th class="p-4 text-xs font-semibold uppercase text-slate-400 text-right">
+                                            Decyzja / Akcja</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="doctor-appointments-rows" class="divide-y divide-white/5 text-sm">
+                                    <!-- Loaded dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ================= ADMIN DASHBOARD ================= -->
+        <div id="admin-dashboard" class="space-y-8 hidden">
+            <!-- Header Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass-card rounded-2xl p-6">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Status Systemu</p>
+                    <h3 class="text-xl font-bold mt-2 text-emerald-400 flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Aktywny (Admin)
+                    </h3>
+                </div>
+                <div class="glass-card rounded-2xl p-6">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Użytkownicy w bazie</p>
+                    <h3 id="admin-stat-users" class="text-3xl font-bold mt-1 text-white">-</h3>
+                </div>
+                <div class="glass-card rounded-2xl p-6">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Wszystkie wizyty</p>
+                    <h3 id="admin-stat-appts" class="text-3xl font-bold mt-1 text-white">-</h3>
+                </div>
+            </div>
+
+            <!-- Admin Sub-Navigation Tabs -->
+            <div class="flex border-b border-white/5">
+                <button id="admin-tab-docs" onclick="switchAdminSubTab('docs')"
+                    class="px-6 py-3 font-semibold text-sm border-b-2 border-indigo-500 text-indigo-400">
+                    Lekarze & Grafiki
+                </button>
+                <button id="admin-tab-users" onclick="switchAdminSubTab('users')"
+                    class="px-6 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-white">
+                    Użytkownicy
+                </button>
+                <button id="admin-tab-appts" onclick="switchAdminSubTab('appts')"
+                    class="px-6 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-white">
+                    Wizyty
+                </button>
+            </div>
+
+            <!-- SubTab: Manage Doctors -->
+            <div id="admin-subtab-docs-content" class="space-y-6">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold text-slate-200">Lista Lekarzy Medycyny</h3>
+                    <button onclick="openDoctorModal()"
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2 rounded-xl transition-all shadow-md">
+                        + Dodaj lekarza
+                    </button>
+                </div>
+                <div class="glass-card rounded-2xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-white/5 border-b border-white/5">
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">ID</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Lekarz</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Specjalizacja</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Gabinet</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Email konta</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Harmonogram</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400 text-right">Opcje</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-doctors-rows" class="divide-y divide-white/5 text-sm">
+                                <!-- Dynamically loaded -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SubTab: Users list -->
+            <div id="admin-subtab-users-content" class="space-y-6 hidden">
+                <h3 class="text-lg font-bold text-slate-200">Rejestr Kont Użytkowników</h3>
+                <div class="glass-card rounded-2xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-white/5 border-b border-white/5">
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">ID Użytkownika</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Email</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Rola</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Dane szczegółowe
+                                        (Pacjent/Lekarz)</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Zarejestrowano</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-users-rows" class="divide-y divide-white/5 text-sm">
+                                <!-- Dynamically loaded -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SubTab: All appointments list -->
+            <div id="admin-subtab-appts-content" class="space-y-6 hidden">
+                <h3 class="text-lg font-bold text-slate-200">Historia Wszystkich Wizyt Systemowych</h3>
+                <div class="glass-card rounded-2xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-white/5 border-b border-white/5">
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">ID</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Pacjent</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Lekarz</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Termin wizyty</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Status</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400">Notatki</th>
+                                    <th class="p-4 text-xs font-semibold uppercase text-slate-400 text-right">Usuń</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-all-appointments-rows" class="divide-y divide-white/5 text-sm">
+                                <!-- Dynamically loaded -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass-card mt-auto border-t border-white/5 px-6 py-6 text-center text-xs text-slate-500">
+        <p>&copy; 2026 Medical Scheduler Inc. Wszystkie prawa zastrzeżone. Projekt zrealizowany w Python Flask i SQLite.
+        </p>
+    </footer>
+
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- Modal: Book Appointment -->
+    <div id="book-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="glass-card rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <h3 class="text-lg font-bold text-white">Rezerwacja nowego terminu</h3>
+                <button onclick="closeBookModal()" class="text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="book-form" onsubmit="event.preventDefault(); submitAppointment();" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Wybierz
+                        Lekarza</label>
+                    <select id="book-doctor-select" required
+                        class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none transition-all">
+                        <!-- Loaded dynamically -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Termin (Data
+                        i Godzina)</label>
+                    <input type="datetime-local" id="book-datetime" required
+                        class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none transition-all">
+                    <p class="text-[10px] text-indigo-400 mt-1.5 font-medium">Upewnij się, że data jest w przyszłości i
+                        mieści się w godzinach pracy lekarza.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Powód wizyty
+                        / Notatki</label>
+                    <textarea id="book-notes" rows="3"
+                        class="glass-input w-full rounded-xl px-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none transition-all"
+                        placeholder="Opisz krótko dolegliwości..."></textarea>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeBookModal()"
+                        class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl transition-all">
+                        Anuluj
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl transition-all shadow-md">
+                        Zarezerwuj
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Modal: Doctor Add / Edit -->
+    <div id="doctor-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="glass-card rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <h3 id="doctor-modal-title" class="text-lg font-bold text-white">Dodaj nowego lekarza</h3>
+                <button onclick="closeDoctorModal()" class="text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="doctor-form" onsubmit="event.preventDefault(); submitDoctor();" class="space-y-4">
+                <input type="hidden" id="doc-modal-id">
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Imię</label>
+                        <input type="text" id="doc-modal-firstname" required
+                            class="glass-input w-full rounded-xl px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all">
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Nazwisko</label>
+                        <input type="text" id="doc-modal-lastname" required
+                            class="glass-input w-full rounded-xl px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Specjalizacja</label>
+                    <input type="text" id="doc-modal-spec" required
+                        class="glass-input w-full rounded-xl px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                        placeholder="np. Kardiolog">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Gabinet
+                        (Pokój)</label>
+                    <input type="text" id="doc-modal-room" required
+                        class="glass-input w-full rounded-xl px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                        placeholder="np. 102B">
+                </div>
+
+                <hr class="border-white/5 my-2">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Email
+                        konta</label>
+                    <input type="email" id="doc-modal-email" required
+                        class="glass-input w-full rounded-xl px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all">
+                </div>
+                <div>
+                    <label id="doc-modal-pass-label"
+                        class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Hasło</label>
+                    <input type="password" id="doc-modal-pass" required
+                        class="glass-input w-full rounded-xl px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+                        placeholder="Min. 6 znaków">
+                    <p id="doc-modal-pass-hint" class="text-[10px] text-slate-500 mt-1 hidden">Zostaw puste, jeśli nie
+                        chcesz zmieniać hasła.</p>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeDoctorModal()"
+                        class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl transition-all">
+                        Anuluj
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl transition-all shadow-md">
+                        Zapisz
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Modal: Doctor Add/Edit Schedule (Admin viewpoint) -->
+    <div id="admin-schedule-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="glass-card rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <h3 class="text-lg font-bold text-white">Harmonogram pracy: <span id="admin-sched-title"
+                        class="text-indigo-400">Dr</span></h3>
+                <button onclick="closeAdminScheduleModal()" class="text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4 max-h-[400px] overflow-y-auto pr-1" id="admin-schedule-form-container">
+                <!-- Built dynamically with 7 day blocks -->
+            </div>
+
+            <div class="flex gap-3 pt-2 border-t border-white/10">
+                <button onclick="closeAdminScheduleModal()"
+                    class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl transition-all">
+                    Anuluj
+                </button>
+                <button onclick="submitAdminSchedule()"
+                    class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl transition-all shadow-md">
+                    Zapisz grafik
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal: Edit Appointment Notes / Status (Doctor Viewpoint) -->
+    <div id="doctor-appt-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="glass-card rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <h3 class="text-lg font-bold text-white">Edycja wizyty pacjenta</h3>
+                <button onclick="closeDoctorApptModal()" class="text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="doctor-appt-form" onsubmit="event.preventDefault(); submitDoctorApptEdit();" class="space-y-4">
+                <input type="hidden" id="doc-appt-id">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Pacjent</label>
+                    <p id="doc-appt-patient-name" class="text-sm font-semibold text-slate-200">-</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Termin wizyty</label>
+                    <p id="doc-appt-datetime" class="text-sm text-slate-300">-</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Decyzja /
+                        Status</label>
+                    <select id="doc-appt-status" required
+                        class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none transition-all">
+                        <option value="pending">Oczekująca (Pending)</option>
+                        <option value="accepted">Zaakceptowana (Accepted)</option>
+                        <option value="cancelled">Odrzucona / Odwołana (Cancelled)</option>
+                        <option value="completed">Zakończona (Completed)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Notatki
+                        lekarskie / Zalecenia</label>
+                    <textarea id="doc-appt-notes" rows="4"
+                        class="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none transition-all"
+                        placeholder="Zalecenia, recepty, notatki po wizycie..."></textarea>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeDoctorApptModal()"
+                        class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl transition-all">
+                        Anuluj
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl transition-all shadow-md">
+                        Zapisz zmiany
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ================= JAVASCRIPT ================= -->
+    <script>
+        // Global State Variables
+        let currentUser = null;
+        let activeAuthTab = 'login';
+        let activeAdminSubTab = 'docs';
+        const daysOfWeekNames = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"];
+
+        // Modal states
+        let editingDoctorId = null;
+        let editingScheduleDoctorId = null;
+
+        // On Document Load: check active session
+        document.addEventListener('DOMContentLoaded', () => {
+            checkSession();
+        });
+
+        // Show toast alert helper
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            let bgClass = 'bg-slate-900/90 border-slate-700 text-slate-200';
+            if (type === 'success') bgClass = 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200';
+            if (type === 'error') bgClass = 'bg-rose-950/90 border-rose-500/50 text-rose-200';
+
+            toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-md shadow-xl transition-all duration-300 transform translate-x-10 opacity-0 ${bgClass}`;
+            toast.innerHTML = `
+                <span class="text-sm font-semibold">${message}</span>
+                <button class="ml-auto text-slate-400 hover:text-white text-xs font-bold" onclick="this.parentElement.remove()">✕</button>
+            `;
+
+            container.appendChild(toast);
+
+            // Animation trigger
+            setTimeout(() => {
+                toast.classList.remove('translate-x-10', 'opacity-0');
+            }, 10);
+
+            // Self-destruct after 4 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-x-10', 'opacity-0');
+                setTimeout(() => { toast.remove(); }, 300);
+            }, 4000);
+        }
+
+        // Fetch wrapper with auto JSON parser and error toaster
+        async function apiRequest(url, method = 'GET', body = null) {
+            const options = {
+                method,
+                headers: {}
+            };
+            if (body) {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify(body);
+            }
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Wystąpił nieoczekiwany błąd serwera.');
+                }
+                return data;
+            } catch (err) {
+                showToast(err.message, 'error');
+                throw err;
+            }
+        }
+
+        // Check user session
+        async function checkSession() {
+            try {
+                const res = await fetch('/me');
+                const data = await res.json();
+
+                if (data.logged_in) {
+                    currentUser = data.user;
+                    currentUser.profile = data.profile;
+                    updateUIForLoggedInUser();
+                } else {
+                    currentUser = null;
+                    showAuthContainer();
+                }
+            } catch (err) {
+                console.error("Session check failed", err);
+                showAuthContainer();
+            }
+        }
+
+        // Setup layouts depending on role
+        function updateUIForLoggedInUser() {
+            // Hide auth section
+            document.getElementById('auth-container').classList.add('hidden');
+
+            // Show header user info
+            const navUserInfo = document.getElementById('nav-user-info');
+            navUserInfo.classList.remove('hidden');
+            navUserInfo.classList.add('flex');
+
+            let displayName = currentUser.email;
+            if (currentUser.profile) {
+                displayName = `${currentUser.profile.first_name} ${currentUser.profile.last_name}`;
+            }
+
+            document.getElementById('user-display-name').innerText = displayName;
+            document.getElementById('user-display-role').innerText = getRoleLabel(currentUser.role);
+
+            // Hide all dashboard panels first
+            document.getElementById('patient-dashboard').classList.add('hidden');
+            document.getElementById('doctor-dashboard').classList.add('hidden');
+            document.getElementById('admin-dashboard').classList.add('hidden');
+
+            if (currentUser.role === 'patient') {
+                document.getElementById('patient-dashboard').classList.remove('hidden');
+                document.getElementById('pat-name').innerText = currentUser.profile ? currentUser.profile.first_name : 'Pacjencie';
+                loadPatientDashboard();
+            } else if (currentUser.role === 'doctor') {
+                document.getElementById('doctor-dashboard').classList.remove('hidden');
+                document.getElementById('doc-name').innerText = currentUser.profile ? `${currentUser.profile.first_name} ${currentUser.profile.last_name}` : 'Lekarz';
+                document.getElementById('doc-room').innerText = currentUser.profile ? currentUser.profile.room : '-';
+                document.getElementById('doc-spec').innerText = currentUser.profile ? currentUser.profile.specialization : '-';
+                loadDoctorDashboard();
+            } else if (currentUser.role === 'admin') {
+                document.getElementById('admin-dashboard').classList.remove('hidden');
+                loadAdminDashboard();
+            }
+        }
+
+        function getRoleLabel(role) {
+            if (role === 'admin') return 'Administrator';
+            if (role === 'doctor') return 'Lekarz Specjalista';
+            if (role === 'patient') return 'Pacjent';
+            return role;
+        }
+
+        function showAuthContainer() {
+            document.getElementById('nav-user-info').classList.add('hidden');
+            document.getElementById('nav-user-info').classList.remove('flex');
+
+            document.getElementById('patient-dashboard').classList.add('hidden');
+            document.getElementById('doctor-dashboard').classList.add('hidden');
+            document.getElementById('admin-dashboard').classList.add('hidden');
+
+            document.getElementById('auth-container').classList.remove('hidden');
+            switchAuthTab(activeAuthTab);
+        }
+
+        // Toggle Login / Register
+        function switchAuthTab(tab) {
+            activeAuthTab = tab;
+            const tabLogin = document.getElementById('tab-btn-login');
+            const tabRegister = document.getElementById('tab-btn-register');
+            const cardLogin = document.getElementById('auth-login-card');
+            const cardRegister = document.getElementById('auth-register-card');
+
+            if (tab === 'login') {
+                tabLogin.className = "flex-1 text-center py-2.5 rounded-lg text-sm font-semibold transition-all bg-indigo-600 text-white shadow-md";
+                tabRegister.className = "flex-1 text-center py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-400 hover:text-white";
+                cardLogin.classList.remove('hidden');
+                cardRegister.classList.add('hidden');
+            } else {
+                tabRegister.className = "flex-1 text-center py-2.5 rounded-lg text-sm font-semibold transition-all bg-indigo-600 text-white shadow-md";
+                tabLogin.className = "flex-1 text-center py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-400 hover:text-white";
+                cardRegister.classList.remove('hidden');
+                cardLogin.classList.add('hidden');
+            }
+        }
+
+        // Authentication calls
+        async function handleLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            try {
+                const data = await apiRequest('/login', 'POST', { email, password });
+                showToast(data.message, 'success');
+                currentUser = data.user;
+                currentUser.profile = data.profile;
+                updateUIForLoggedInUser();
+            } catch (err) { }
+        }
+
+        async function handleRegister() {
+            const first_name = document.getElementById('reg-firstname').value;
+            const last_name = document.getElementById('reg-lastname').value;
+            const pesel = document.getElementById('reg-pesel').value;
+            const phone = document.getElementById('reg-phone').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+
+            try {
+                const data = await apiRequest('/register', 'POST', {
+                    first_name, last_name, pesel, phone, email, password
+                });
+                showToast("Rejestracja przebiegła pomyślnie!", "success");
+                currentUser = data.user;
+                currentUser.profile = data.patient;
+                updateUIForLoggedInUser();
+            } catch (err) { }
+        }
+
+        async function handleLogout() {
+            try {
+                await apiRequest('/logout', 'POST');
+                showToast("Wylogowano pomyślnie.", 'success');
+                currentUser = null;
+                showAuthContainer();
+            } catch (err) { }
+        }
+
+
+        // ================= PATIENT ACTIONS =================
+
+        async function loadPatientDashboard() {
+            try {
+                // Load doctors
+                const doctors = await apiRequest('/doctors');
+                renderPatientDoctors(doctors);
+
+                // Populate select list in booking modal
+                const select = document.getElementById('book-doctor-select');
+                select.innerHTML = doctors.map(d => `<option value="${d.id}">Dr ${d.first_name} ${d.last_name} (${d.specialization})</option>`).join('');
+
+                // Load patient appointments
+                const appts = await apiRequest('/appointments');
+                renderPatientAppointments(appts);
+            } catch (err) { }
+        }
+
+        function renderPatientDoctors(doctors) {
+            const container = document.getElementById('patient-doctors-list');
+            if (doctors.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-500 italic p-4">Brak zarejestrowanych lekarzy.</p>`;
+                return;
+            }
+
+            container.innerHTML = doctors.map(doc => {
+                const schedHtml = doc.schedules.length > 0
+                    ? doc.schedules.map(s => `<div class="text-xs text-slate-400 font-medium">${daysOfWeekNames[s.day_of_week]}: ${s.start_time}-${s.end_time}</div>`).join('')
+                    : `<div class="text-xs text-rose-400 italic">Brak godzin przyjęć</div>`;
+
+                return `
+                    <div class="glass-card rounded-xl p-4 border border-white/5 space-y-3">
+                        <div>
+                            <h4 class="font-bold text-white text-sm">Dr ${doc.first_name} ${doc.last_name}</h4>
+                            <p class="text-xs text-indigo-400 font-medium">${doc.specialization} | Gabinet ${doc.room}</p>
+                        </div>
+                        <div class="pt-2 border-t border-white/5 space-y-1">
+                            <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Godziny pracy:</p>
+                            ${schedHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderPatientAppointments(appts) {
+            const container = document.getElementById('patient-appointments-rows');
+            if (appts.length === 0) {
+                container.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-8 text-center text-slate-500 italic">Nie masz jeszcze żadnych umówionych wizyt.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            container.innerHTML = appts.map(appt => {
+                const dateParsed = new Date(appt.appointment_date).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' });
+
+                let cancelBtn = '';
+                if (appt.status === 'pending' || appt.status === 'accepted') {
+                    cancelBtn = `<button onclick="cancelAppointment(${appt.id})" class="text-rose-400 hover:text-rose-300 font-semibold text-xs py-1 px-2 border border-rose-500/20 hover:border-rose-500/50 bg-rose-500/5 rounded-lg transition-all">Odwołaj</button>`;
+                } else {
+                    cancelBtn = `<button onclick="deleteAppointment(${appt.id})" class="text-slate-500 hover:text-slate-400 font-semibold text-xs py-1 px-2 transition-all">Usuń wpis</button>`;
+                }
+
+                return `
+                    <tr class="hover:bg-white/5 transition-all">
+                        <td class="p-4 font-semibold text-white">${appt.doctor_name}</td>
+                        <td class="p-4 text-slate-300 font-medium">${dateParsed}</td>
+                        <td class="p-4">${getStatusBadge(appt.status)}</td>
+                        <td class="p-4 text-slate-400 max-w-xs truncate" title="${appt.notes || ''}">${appt.notes || '<span class="italic text-slate-600">brak notatek</span>'}</td>
+                        <td class="p-4 text-right">${cancelBtn}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getStatusBadge(status) {
+            if (status === 'pending') return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-yellow-950/80 border border-yellow-600/40 text-yellow-300">Pending</span>`;
+            if (status === 'accepted') return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-950/80 border border-indigo-500/40 text-indigo-300">Accepted</span>`;
+            if (status === 'cancelled') return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-950/80 border border-rose-500/40 text-rose-300">Cancelled</span>`;
+            if (status === 'completed') return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">Completed</span>`;
+            return status;
+        }
+
+        function openBookModal() {
+            document.getElementById('book-modal').classList.remove('hidden');
+        }
+
+        function closeBookModal() {
+            document.getElementById('book-modal').classList.add('hidden');
+        }
+
+        async function submitAppointment() {
+            const doctor_id = parseInt(document.getElementById('book-doctor-select').value);
+            const rawDate = document.getElementById('book-datetime').value;
+            const notes = document.getElementById('book-notes').value;
+
+            if (!rawDate) return;
+            // Format YYYY-MM-DD HH:MM
+            const appointment_date = rawDate.replace('T', ' ');
+
+            try {
+                await apiRequest('/appointments', 'POST', { doctor_id, appointment_date, notes });
+                showToast("Wizyta została pomyślnie zarezerwowana!", "success");
+                closeBookModal();
+                loadPatientDashboard();
+            } catch (err) { }
+        }
+
+        async function cancelAppointment(id) {
+            if (!confirm("Czy na pewno chcesz odwołać tę wizytę?")) return;
+            try {
+                await apiRequest(`/appointments/${id}`, 'PUT', { status: 'cancelled' });
+                showToast("Wizyta została odwołana.", "success");
+                loadPatientDashboard();
+            } catch (err) { }
+        }
+
+        async function deleteAppointment(id) {
+            if (!confirm("Czy chcesz usunąć tę wizytę z historii?")) return;
+            try {
+                await apiRequest(`/appointments/${id}`, 'DELETE');
+                showToast("Wpis usunięty z historii.", "success");
+                loadPatientDashboard();
+            } catch (err) { }
+        }
+
+
+        // ================= DOCTOR ACTIONS =================
+
+        async function loadDoctorDashboard() {
+            try {
+                // Populate schedule editor checkboxes
+                if (currentUser.profile && currentUser.profile.schedules) {
+                    // Reset first
+                    for (let day = 0; day <= 6; day++) {
+                        document.getElementById(`sched-check-${day}`).checked = false;
+                    }
+                    // Load actuals
+                    currentUser.profile.schedules.forEach(s => {
+                        document.getElementById(`sched-check-${s.day_of_week}`).checked = true;
+                        document.getElementById(`sched-start-${s.day_of_week}`).value = s.start_time;
+                        document.getElementById(`sched-end-${s.day_of_week}`).value = s.end_time;
+                    });
+                }
+
+                // Load Doctor's appointments
+                const appts = await apiRequest('/appointments');
+                renderDoctorAppointments(appts);
+            } catch (err) { }
+        }
+
+        async function saveDoctorSchedule() {
+            const payload = [];
+            for (let day = 0; day <= 6; day++) {
+                const checked = document.getElementById(`sched-check-${day}`).checked;
+                if (checked) {
+                    const start_time = document.getElementById(`sched-start-${day}`).value;
+                    const end_time = document.getElementById(`sched-end-${day}`).value;
+                    payload.push({
+                        day_of_week: day,
+                        start_time,
+                        end_time
+                    });
+                }
+            }
+
+            try {
+                const doctorId = currentUser.profile.id;
+                const data = await apiRequest(`/doctors/${doctorId}/schedule`, 'POST', payload);
+                showToast("Harmonogram został zaktualizowany!", "success");
+                // Update local session storage of doctor schedules
+                currentUser.profile.schedules = data.schedule;
+            } catch (err) { }
+        }
+
+        function renderDoctorAppointments(appts) {
+            const container = document.getElementById('doctor-appointments-rows');
+            if (appts.length === 0) {
+                container.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-500 italic">Brak umówionych wizyt pacjentów.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            container.innerHTML = appts.map(appt => {
+                const dateParsed = new Date(appt.appointment_date).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' });
+
+                let actionBtn = `<button onclick="openDoctorApptModal(${appt.id}, '${appt.patient_name}', '${appt.appointment_date}', '${appt.status}', \`${appt.notes || ''}\`)" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all">Edytuj / Zmień status</button>`;
+
+                return `
+                    <tr class="hover:bg-white/5 transition-all">
+                        <td class="p-4 font-semibold text-white">${appt.patient_name}</td>
+                        <td class="p-4 text-xs text-slate-400">
+                            Telefon: ${appt.patient_phone || '-'}<br>
+                        </td>
+                        <td class="p-4 text-slate-300 font-medium">${dateParsed}</td>
+                        <td class="p-4">${getStatusBadge(appt.status)}</td>
+                        <td class="p-4 text-slate-400 max-w-xs truncate" title="${appt.notes || ''}">${appt.notes || '<span class="italic text-slate-600">brak notatek</span>'}</td>
+                        <td class="p-4 text-right">${actionBtn}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openDoctorApptModal(id, patientName, dateStr, status, notes) {
+            document.getElementById('doc-appt-id').value = id;
+            document.getElementById('doc-appt-patient-name').innerText = patientName;
+
+            const dateParsed = new Date(dateStr).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' });
+            document.getElementById('doc-appt-datetime').innerText = dateParsed;
+            document.getElementById('doc-appt-status').value = status;
+            document.getElementById('doc-appt-notes').value = notes;
+
+            document.getElementById('doctor-appt-modal').classList.remove('hidden');
+        }
+
+        function closeDoctorApptModal() {
+            document.getElementById('doctor-appt-modal').classList.add('hidden');
+        }
+
+        async function submitDoctorApptEdit() {
+            const id = document.getElementById('doc-appt-id').value;
+            const status = document.getElementById('doc-appt-status').value;
+            const notes = document.getElementById('doc-appt-notes').value;
+
+            try {
+                await apiRequest(`/appointments/${id}`, 'PUT', { status, notes });
+                showToast("Wizyta pacjenta została pomyślnie zaktualizowana.", "success");
+                closeDoctorApptModal();
+                loadDoctorDashboard();
+            } catch (err) { }
+        }
+
+
+        // ================= ADMIN ACTIONS =================
+
+        async function loadAdminDashboard() {
+            try {
+                // Fetch basic statistics
+                const users = await apiRequest('/users');
+                const appts = await apiRequest('/all-appointments');
+                const doctors = await apiRequest('/doctors');
+
+                document.getElementById('admin-stat-users').innerText = users.length;
+                document.getElementById('admin-stat-appts').innerText = appts.length;
+
+                renderAdminDoctors(doctors);
+                renderAdminUsers(users);
+                renderAdminAppointments(appts);
+            } catch (err) { }
+        }
+
+        function switchAdminSubTab(subTab) {
+            activeAdminSubTab = subTab;
+
+            const tabDocs = document.getElementById('admin-tab-docs');
+            const tabUsers = document.getElementById('admin-tab-users');
+            const tabAppts = document.getElementById('admin-tab-appts');
+
+            const blockDocs = document.getElementById('admin-subtab-docs-content');
+            const blockUsers = document.getElementById('admin-subtab-users-content');
+            const blockAppts = document.getElementById('admin-subtab-appts-content');
+
+            // Reset borders
+            [tabDocs, tabUsers, tabAppts].forEach(t => {
+                t.classList.remove('border-indigo-500', 'text-indigo-400');
+                t.classList.add('border-transparent', 'text-slate-400');
+            });
+            // Reset contents
+            [blockDocs, blockUsers, blockAppts].forEach(b => b.classList.add('hidden'));
+
+            // Activate specific
+            if (subTab === 'docs') {
+                tabDocs.classList.add('border-indigo-500', 'text-indigo-400');
+                blockDocs.classList.remove('hidden');
+            } else if (subTab === 'users') {
+                tabUsers.classList.add('border-indigo-500', 'text-indigo-400');
+                blockUsers.classList.remove('hidden');
+            } else if (subTab === 'appts') {
+                tabAppts.classList.add('border-indigo-500', 'text-indigo-400');
+                blockAppts.classList.remove('hidden');
+            }
+        }
+
+        function renderAdminDoctors(doctors) {
+            const container = document.getElementById('admin-doctors-rows');
+            if (doctors.length === 0) {
+                container.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500 italic">Brak zdefiniowanych lekarzy. Kliknij przycisk powyżej, aby dodać.</td></tr>`;
+                return;
+            }
+
+            container.innerHTML = doctors.map(doc => {
+                const schedulesText = doc.schedules.map(s => `${daysOfWeekNames[s.day_of_week].substring(0, 3)}. ${s.start_time}-${s.end_time}`).join(', ') || '<span class="text-rose-500 italic">nieustalony</span>';
+
+                return `
+                    <tr class="hover:bg-white/5 transition-all">
+                        <td class="p-4 text-slate-400 font-mono">${doc.id}</td>
+                        <td class="p-4 font-semibold text-white">Dr ${doc.first_name} ${doc.last_name}</td>
+                        <td class="p-4 text-slate-300">${doc.specialization}</td>
+                        <td class="p-4 text-slate-300 font-mono">${doc.room}</td>
+                        <td class="p-4 text-slate-400">${doc.email}</td>
+                        <td class="p-4 text-xs max-w-xs truncate text-slate-400" title="${schedulesText.replace(/<[^>]*>/g, '')}">${schedulesText}</td>
+                        <td class="p-4 text-right space-x-1.5 whitespace-nowrap">
+                            <button onclick="openAdminScheduleModal(${doc.id}, '${doc.first_name} ${doc.last_name}', \`${JSON.stringify(doc.schedules)}\`)" class="text-indigo-400 hover:text-indigo-300 font-semibold text-xs border border-indigo-500/20 hover:border-indigo-500/50 bg-indigo-500/5 py-1.5 px-2 rounded-lg transition-all">Terminy</button>
+                            <button onclick="openDoctorModal(${doc.id}, '${doc.first_name}', '${doc.last_name}', '${doc.specialization}', '${doc.room}', '${doc.email}')" class="text-amber-400 hover:text-amber-300 font-semibold text-xs border border-amber-500/20 hover:border-amber-500/50 bg-amber-500/5 py-1.5 px-2 rounded-lg transition-all">Edytuj</button>
+                            <button onclick="deleteDoctor(${doc.id})" class="text-rose-400 hover:text-rose-300 font-semibold text-xs border border-rose-500/20 hover:border-rose-500/50 bg-rose-500/5 py-1.5 px-2 rounded-lg transition-all">Usuń</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderAdminUsers(users) {
+            const container = document.getElementById('admin-users-rows');
+            if (users.length === 0) {
+                container.innerHTML = `<tr><td colspan="5" class="p-4 text-slate-500 italic text-center">Brak użytkowników w bazie.</td></tr>`;
+                return;
+            }
+
+            container.innerHTML = users.map(user => {
+                let detail = '-';
+                if (user.role === 'patient' && user.profile) {
+                    detail = `Pacjent: ${user.profile.first_name} ${user.profile.last_name} (PESEL: ${user.profile.pesel}, Tel: ${user.profile.phone})`;
+                } else if (user.role === 'doctor' && user.profile) {
+                    detail = `Lekarz: Dr ${user.profile.first_name} ${user.profile.last_name} (Spec: ${user.profile.specialization}, Gabinet: ${user.profile.room})`;
+                } else if (user.role === 'admin') {
+                    detail = `Konto Administratora`;
+                }
+
+                const regDate = new Date(user.created_at).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' });
+
+                return `
+                    <tr class="hover:bg-white/5 transition-all text-xs">
+                        <td class="p-4 text-slate-400 font-mono">${user.id}</td>
+                        <td class="p-4 font-semibold text-white">${user.email}</td>
+                        <td class="p-4 font-semibold"><span class="px-2 py-0.5 rounded ${user.role === 'admin' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : user.role === 'doctor' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}">${user.role.toUpperCase()}</span></td>
+                        <td class="p-4 text-slate-300 font-medium">${detail}</td>
+                        <td class="p-4 text-slate-400">${regDate}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderAdminAppointments(appts) {
+            const container = document.getElementById('admin-all-appointments-rows');
+            if (appts.length === 0) {
+                container.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500 italic">Brak zarezerwowanych wizyt w systemie.</td></tr>`;
+                return;
+            }
+
+            container.innerHTML = appts.map(appt => {
+                const dateParsed = new Date(appt.appointment_date).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' });
+                return `
+                    <tr class="hover:bg-white/5 transition-all">
+                        <td class="p-4 text-slate-400 font-mono">${appt.id}</td>
+                        <td class="p-4 font-semibold text-white">${appt.patient_name}</td>
+                        <td class="p-4 font-semibold text-indigo-400">${appt.doctor_name}</td>
+                        <td class="p-4 text-slate-300 font-medium">${dateParsed}</td>
+                        <td class="p-4">${getStatusBadge(appt.status)}</td>
+                        <td class="p-4 text-slate-400 max-w-xs truncate" title="${appt.notes || ''}">${appt.notes || '<span class="italic text-slate-600">brak</span>'}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="adminDeleteAppointment(${appt.id})" class="text-rose-500 hover:text-rose-400 text-xs font-semibold px-2 py-1 transition-all">Usuń</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Add/Edit Doctor Modal control
+        function openDoctorModal(id = null, first = '', last = '', spec = '', room = '', email = '') {
+            editingDoctorId = id;
+            const title = document.getElementById('doctor-modal-title');
+            const passInput = document.getElementById('doc-modal-pass');
+            const passHint = document.getElementById('doc-modal-pass-hint');
+            const passLabel = document.getElementById('doc-modal-pass-label');
+
+            document.getElementById('doc-modal-id').value = id || '';
+            document.getElementById('doc-modal-firstname').value = first;
+            document.getElementById('doc-modal-lastname').value = last;
+            document.getElementById('doc-modal-spec').value = spec;
+            document.getElementById('doc-modal-room').value = room;
+            document.getElementById('doc-modal-email').value = email;
+            passInput.value = '';
+
+            if (id) {
+                title.innerText = `Edycja profilu: Dr ${first} ${last}`;
+                passInput.required = false;
+                passHint.classList.remove('hidden');
+                passLabel.innerText = "Hasło (opcjonalnie)";
+            } else {
+                title.innerText = "Dodaj nowego lekarza";
+                passInput.required = true;
+                passHint.classList.add('hidden');
+                passLabel.innerText = "Hasło logowania";
+            }
+
+            document.getElementById('doctor-modal').classList.remove('hidden');
+        }
+
+        function closeDoctorModal() {
+            document.getElementById('doctor-modal').classList.add('hidden');
+        }
+
+        async function submitDoctor() {
+            const first_name = document.getElementById('doc-modal-firstname').value.trim();
+            const last_name = document.getElementById('doc-modal-lastname').value.trim();
+            const specialization = document.getElementById('doc-modal-spec').value.trim();
+            const room = document.getElementById('doc-modal-room').value.trim();
+            const email = document.getElementById('doc-modal-email').value.trim();
+            const password = document.getElementById('doc-modal-pass').value;
+
+            const payload = { first_name, last_name, specialization, room, email };
+            if (password) payload.password = password;
+
+            try {
+                if (editingDoctorId) {
+                    // Update
+                    await apiRequest(`/doctors/${editingDoctorId}`, 'PUT', payload);
+                    showToast("Dane lekarza zaktualizowane pomyślnie.", "success");
+                } else {
+                    // Create
+                    await apiRequest('/doctors', 'POST', payload);
+                    showToast("Nowy lekarz dodany pomyślnie.", "success");
+                }
+                closeDoctorModal();
+                loadAdminDashboard();
+            } catch (err) { }
+        }
+
+        async function deleteDoctor(id) {
+            if (!confirm("Czy na pewno chcesz usunąć tego lekarza i całe jego powiązane konto logowania? Spowoduje to również usunięcie jego wizyt!")) return;
+            try {
+                await apiRequest(`/doctors/${id}`, 'DELETE');
+                showToast("Lekarz i jego konto usunięte.", "success");
+                loadAdminDashboard();
+            } catch (err) { }
+        }
+
+        async function adminDeleteAppointment(id) {
+            if (!confirm("Czy na pewno chcesz trwale usunąć tę rezerwację z bazy danych?")) return;
+            try {
+                await apiRequest(`/appointments/${id}`, 'DELETE');
+                showToast("Rezerwacja usunięta.", "success");
+                loadAdminDashboard();
+            } catch (err) { }
+        }
+
+        // Doctor schedule edit (Admin viewpoint)
+        function openAdminScheduleModal(doctor_id, name, schedulesJson) {
+            editingScheduleDoctorId = doctor_id;
+            document.getElementById('admin-sched-title').innerText = `Dr ${name}`;
+
+            const schedules = JSON.parse(schedulesJson || "[]");
+            const container = document.getElementById('admin-schedule-form-container');
+
+            container.innerHTML = daysOfWeekNames.map((dayName, index) => {
+                const activeSched = schedules.find(s => s.day_of_week === index);
+                const isChecked = !!activeSched;
+                const startTime = activeSched ? activeSched.start_time : "08:00";
+                const endTime = activeSched ? activeSched.end_time : "16:00";
+
+                return `
+                    <div class="flex items-center justify-between border-b border-white/5 py-3" data-day="${index}">
+                        <label class="flex items-center gap-2.5 text-sm font-semibold w-1/3">
+                            <input type="checkbox" id="admin-sched-check-${index}" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                            ${dayName}
+                        </label>
+                        <div class="flex items-center gap-2 w-2/3 justify-end">
+                            <input type="time" id="admin-sched-start-${index}" class="glass-input rounded-lg px-2.5 py-1 text-xs" value="${startTime}">
+                            <span class="text-slate-500 text-xs">do</span>
+                            <input type="time" id="admin-sched-end-${index}" class="glass-input rounded-lg px-2.5 py-1 text-xs" value="${endTime}">
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('admin-schedule-modal').classList.remove('hidden');
+        }
+
+        function closeAdminScheduleModal() {
+            document.getElementById('admin-schedule-modal').classList.add('hidden');
+        }
+
+        async function submitAdminSchedule() {
+            const payload = [];
+            for (let day = 0; day <= 6; day++) {
+                const checked = document.getElementById(`admin-sched-check-${day}`).checked;
+                if (checked) {
+                    const start_time = document.getElementById(`admin-sched-start-${day}`).value;
+                    const end_time = document.getElementById(`admin-sched-end-${day}`).value;
+                    payload.push({
+                        day_of_week: day,
+                        start_time,
+                        end_time
+                    });
+                }
+            }
+
+            try {
+                await apiRequest(`/doctors/${editingScheduleDoctorId}/schedule`, 'POST', payload);
+                showToast("Harmonogram lekarza zaktualizowany!", "success");
+                closeAdminScheduleModal();
+                loadAdminDashboard();
+            } catch (err) { }
+        }
+    </script>
+</body>
+
+</html>
